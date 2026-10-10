@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:import": "node scripts/test-fixture-import.mjs",
+    "test:teams": "node scripts/test-team-logos.mjs",
+    "test": "node scripts/test-fixture-import.mjs && node scripts/test-team-logos.mjs && node scripts/test-home-and-detail.mjs",
+    "test:pages": "node scripts/test-home-and-detail.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -18,6 +22,7 @@
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.6.5"
   },
   "devDependencies": {

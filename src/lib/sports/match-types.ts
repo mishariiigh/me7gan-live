@@ -25,10 +25,33 @@ export type PublicMatch = {
 export type PublicFixtureSchedule = {
   today: PublicMatch[];
   tomorrow: PublicMatch[];
+  /** Every published fixture in the current Monday..Sunday week, by date. */
+  week: PublicMatch[];
+  weekStartDate: string;
+  weekEndDate: string;
   todayDate: string;
   tomorrowDate: string;
   error: boolean;
 };
+
+/**
+ * Monday..Sunday bounds of the week containing `date`, as YYYY-MM-DD.
+ *
+ * The arithmetic is UTC calendar maths on a date string that is already local
+ * to the project timezone. Using local-time Date methods would move fixtures
+ * near midnight across a day boundary, which is exactly the bug this avoids.
+ */
+export function getWeekBounds(date: string): { weekStartDate: string; weekEndDate: string } {
+  const [year, month, day] = date.split("-").map(Number);
+  const anchor = new Date(Date.UTC(year, month - 1, day));
+  // getUTCDay(): 0 = Sunday. The week starts on Monday, so Sunday has offset 6.
+  const offsetFromMonday = (anchor.getUTCDay() + 6) % 7;
+  const start = new Date(Date.UTC(year, month - 1, day - offsetFromMonday));
+  const end = new Date(Date.UTC(year, month - 1, day - offsetFromMonday + 6));
+  const format = (value: Date) =>
+    `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
+  return { weekStartDate: format(start), weekEndDate: format(end) };
+}
 
 /** Calendar date (YYYY-MM-DD) for a moment, in the project timezone. */
 export function getScheduleDate(date: Date = new Date(), timeZone: string = MATCH_TIMEZONE) {

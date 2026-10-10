@@ -1,17 +1,19 @@
 import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { applyTeamLogos, loadTeamLogoIndex } from "@/lib/sports/team-logos";
 import type { Competition } from "@/lib/sports/competitions";
 import {
   formatKickoffTime,
   getNextScheduleDate,
   getScheduleDate,
+  getWeekBounds,
   type PublicFixtureSchedule,
   type PublicMatch,
 } from "@/lib/sports/match-types";
 
 export type { PublicFixtureSchedule, PublicMatch } from "@/lib/sports/match-types";
-export { MATCH_TIMEZONE } from "@/lib/sports/match-types";
+export { MATCH_TIMEZONE, getWeekBounds } from "@/lib/sports/match-types";
 
 export type MatchRow = {
   id: string;
@@ -57,7 +59,12 @@ function mapMatch(row: MatchRow, options: { hasActiveStream?: boolean } = {}): P
 async function withActiveStreamFlag(rows: MatchRow[]): Promise<PublicMatch[]> {
   if (rows.length === 0) return [];
   const client = await createSupabaseServerClient();
-  if (!client) return rows.map((row) => mapMatch(row));
+  // Stored club crests are resolved once for the whole page, then applied to
+  // every fixture. This is what makes a logo uploaded once appear on all past
+  // and future matches involving that club.
+  const logoIndex = await loadTeamLogoIndex(client);
+
+  if (!client) return rows.map((row) => applyTeamLogos(mapMatch(row), logoIndex));
 
   const fixtureIds = rows.map((row) => row.fixture_id);
   const { data, error } = await client
@@ -66,34 +73,61 @@ async function withActiveStreamFlag(rows: MatchRow[]): Promise<PublicMatch[]> {
     .in("fixture_id", fixtureIds)
     .eq("active", true);
 
-  if (error || !data) return rows.map((row) => mapMatch(row));
+  if (error || !data) return rows.map((row) => applyTeamLogos(mapMatch(row), logoIndex));
   const streamed = new Set((data as { fixture_id: string }[]).map((row) => row.fixture_id));
-  return rows.map((row) => mapMatch(row, { hasActiveStream: streamed.has(row.fixture_id) }));
+  return rows.map((row) =>
+    applyTeamLogos(mapMatch(row, { hasActiveStream: streamed.has(row.fixture_id) }), logoIndex),
+  );
 }
 
 /**
  * Public schedule for the homepage and /upcoming.
  *
- * Reads only published matches from Supabase for the real "today" and
- * "tomorrow" calendar dates. Matches on any other date are intentionally not
- * returned here — they remain available in Admin → Schedule.
+ * Reads published matches from Supabase for the Monday..Sunday week containing
+ * the current date in the project timezone. `today` and `tomorrow` are derived
+ * from that window, so a single query serves the homepage's Today, Tomorrow and
+ * This Week filters without extra requests. Matches outside the week remain
+ * available in Admin → Schedule.
  */
 export async function getPublicFixtureSchedule(): Promise<PublicFixtureSchedule> {
   const todayDate = getTodayScheduleDate();
   const tomorrowDate = getTomorrowScheduleDate();
-  const empty = { today: [], tomorrow: [], todayDate, tomorrowDate, error: false };
+  const { weekStartDate, weekEndDate } = getWeekBounds(todayDate);
+  const queryEndDate =
+    tomorrowDate > weekEndDate ? tomorrowDate : weekEndDate;
+
+  const empty = {
+    today: [],
+    tomorrow: [],
+    week: [],
+    todayDate,
+    tomorrowDate,
+    weekStartDate,
+    weekEndDate,
+    error: false,
+  };
 
   const client = await createSupabaseServerClient();
   if (!client) return empty;
 
+  // One query covers all three homepage filters. "This Week" is the whole
+  // Monday..Sunday range; today and tomorrow are subsets of it, so widening the
+  // window costs nothing extra and keeps every filter on identical data.
+  //
+  // `.range` is explicit for the same reason every other multi-row query in this
+  // module sets it: PostgREST applies a server-side row cap, and without an
+  // explicit window a busy week would be silently truncated — matches would go
+  // missing from "This Week" with no error anywhere.
   const { data, error } = await client
     .from("matches")
     .select(MATCH_COLUMNS)
     .eq("published", true)
-    .in("match_date", [todayDate, tomorrowDate])
+    .gte("match_date", weekStartDate)
+    .lte("match_date", queryEndDate)
     .order("match_date", { ascending: true })
     .order("kickoff_time", { ascending: true })
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .range(0, 999);
 
   if (error) return { ...empty, error: true };
 
@@ -102,6 +136,15 @@ export async function getPublicFixtureSchedule(): Promise<PublicFixtureSchedule>
   return {
     today: withStreams.filter((match) => match.matchDate === todayDate),
     tomorrow: withStreams.filter((match) => match.matchDate === tomorrowDate),
+    // The week window is a superset of today+tomorrow, so it is filtered from
+    // the same rows: no second query, and no chance of the two disagreeing.
+    week: withStreams.filter(
+      (match) =>
+        match.matchDate >= weekStartDate &&
+        match.matchDate <= weekEndDate,
+    ),
+    weekStartDate,
+    weekEndDate,
     todayDate,
     tomorrowDate,
     error: false,
@@ -154,7 +197,15 @@ export async function getLiveMatches(): Promise<{ matches: PublicMatch[]; error:
   };
 }
 
-/** A single published match, resolved by its internal fixture ID. */
+/**
+ * A single published match, resolved by its internal fixture ID.
+ *
+ * The saved club crests are applied here too. This loader is reached directly
+ * by the match detail page, which does not pass through the schedule path, so
+ * without this the detail page rendered logos from the match row only — leaving
+ * a crest that had been uploaded once in the admin Team Logo Manager missing.
+ * Resolving through the same shared helper keeps both pages identical.
+ */
 export async function getPublicMatchByFixtureId(fixtureId: string): Promise<PublicMatch | null> {
   const client = await createSupabaseServerClient();
   if (!client) return null;
@@ -165,5 +216,7 @@ export async function getPublicMatchByFixtureId(fixtureId: string): Promise<Publ
     .eq("published", true)
     .maybeSingle();
   if (error || !data) return null;
-  return mapMatch(data as MatchRow);
+
+  const logoIndex = await loadTeamLogoIndex(client);
+  return applyTeamLogos(mapMatch(data as MatchRow), logoIndex);
 }

@@ -13,6 +13,8 @@ import { BRAND } from "@/lib/brand";
 
 type Schedule = Awaited<ReturnType<typeof getPublicFixtureSchedule>>;
 type Tab = "all" | "stream" | "external";
+/** Date-range filter: the primary way a visitor narrows the schedule. */
+type Range = "today" | "tomorrow" | "week";
 
 /**
  * Homepage.
@@ -30,25 +32,50 @@ export default function HomePage({
 }) {
   const { locale } = useLocale();
   const [tab, setTab] = useState<Tab>("all");
+  const [range, setRange] = useState<Range>("week");
 
   const featured = liveMatches[0] ?? fixtureSchedule.today[0] ?? fixtureSchedule.tomorrow[0] ?? null;
 
-  const allUpcoming = useMemo(
-    () => [...fixtureSchedule.today, ...fixtureSchedule.tomorrow],
-    [fixtureSchedule.today, fixtureSchedule.tomorrow],
-  );
+  // "This Week" is the whole Monday..Sunday window; today and tomorrow are
+  // subsets of it, so all three read the same already-loaded rows. No filter
+  // triggers a request, so switching is instant and cannot disagree with the
+  // server about a date boundary.
+  const rangeMatches = useMemo(() => {
+    if (range === "today") return fixtureSchedule.today;
+    if (range === "tomorrow") return fixtureSchedule.tomorrow;
+    return fixtureSchedule.week;
+  }, [range, fixtureSchedule.today, fixtureSchedule.tomorrow, fixtureSchedule.week]);
 
   const visible = useMemo(() => {
-    if (tab === "stream") return allUpcoming.filter((match) => match.hasActiveStream);
-    if (tab === "external") return allUpcoming.filter((match) => !match.hasActiveStream);
-    return allUpcoming;
-  }, [allUpcoming, tab]);
+    if (tab === "stream") return rangeMatches.filter((match) => match.hasActiveStream);
+    if (tab === "external") return rangeMatches.filter((match) => !match.hasActiveStream);
+    return rangeMatches;
+  }, [rangeMatches, tab]);
+
+  const ranges: { id: Range; label: string }[] = [
+    { id: "today", label: locale === "ar" ? "اليوم" : "Today" },
+    { id: "tomorrow", label: locale === "ar" ? "الغد" : "Tomorrow" },
+    { id: "week", label: locale === "ar" ? "هذا الأسبوع" : "This week" },
+  ];
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "all", label: locale === "ar" ? "الكل" : "All" },
     { id: "stream", label: locale === "ar" ? "بث داخل الموقع" : "On-site stream" },
     { id: "external", label: locale === "ar" ? "بث رسمي" : "Official broadcast" },
   ];
+
+  /** The week's fixtures grouped by date, Monday first, for the group headings. */
+  const weekGroups = useMemo(() => {
+    const byDate = new Map<string, PublicMatch[]>();
+    for (const match of visible) {
+      const list = byDate.get(match.matchDate) ?? [];
+      list.push(match);
+      byDate.set(match.matchDate, list);
+    }
+    // Sorted by the date string, which is already ISO-ordered, so no date
+    // parsing (and no timezone conversion) is involved.
+    return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [visible]);
 
   return (
     <main id="main-content">
@@ -153,14 +180,35 @@ export default function HomePage({
         <div className="section-heading">
           <div>
             <span className="eyebrow">{locale === "ar" ? "التالي" : "NEXT UP"}</span>
-            <h2>{locale === "ar" ? "مباريات اليوم والغد" : "Today and tomorrow"}</h2>
+            <h2>{locale === "ar" ? "جدول المباريات" : "Match schedule"}</h2>
           </div>
           <Link href="/upcoming">
             {locale === "ar" ? "الجدول الكامل" : "Full schedule"} <ArrowLeft size={15} aria-hidden="true" />
           </Link>
         </div>
 
-        {allUpcoming.length > 0 && (
+        {/* Primary filter: which dates to show. */}
+        <div
+          className="range-tabs"
+          role="tablist"
+          aria-label={locale === "ar" ? "نطاق التاريخ" : "Date range"}
+        >
+          {ranges.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              className={range === id ? "range-tab active" : "range-tab"}
+              onClick={() => setRange(id)}
+              aria-selected={range === id}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Secondary filter: how the match is broadcast. */}
+        {rangeMatches.length > 0 && (
           <div className="filter-bar" role="group" aria-label={locale === "ar" ? "تصفية المباريات" : "Filter matches"}>
             {tabs.map(({ id, label }) => (
               <button
@@ -177,30 +225,52 @@ export default function HomePage({
         )}
 
         {visible.length > 0 ? (
-          <>
+          // Grouped by date for every range, so "This Week" reads as a browsable
+          // Monday..Sunday schedule and Today/Tomorrow stay single groups.
+          weekGroups.map(([date, matches]) => (
             <DateGroup
-              title={locale === "ar" ? "مباريات اليوم" : "Today"}
-              date={fixtureSchedule.todayDate}
-              matches={visible.filter((match) => match.matchDate === fixtureSchedule.todayDate)}
+              key={date}
+              title={dateLabel(date, fixtureSchedule, locale)}
+              date={date}
+              matches={matches}
               locale={locale}
             />
-            <DateGroup
-              title={locale === "ar" ? "مباريات الغد" : "Tomorrow"}
-              date={fixtureSchedule.tomorrowDate}
-              matches={visible.filter((match) => match.matchDate === fixtureSchedule.tomorrowDate)}
-              locale={locale}
-            />
-          </>
+          ))
         ) : (
           <EmptyState
             icon={<Tv size={20} />}
-            title={locale === "ar" ? "لا توجد مباريات مطابقة" : "No matching matches"}
-            description={locale === "ar" ? "جرّب اختيار تصنيف آخر من الأعلى." : "Try another filter above."}
+            title={emptyTitle(range, locale)}
+            description={
+              range === "today"
+                ? (locale === "ar" ? "لا توجد مباريات مجدولة اليوم. جرّب الغد أو هذا الأسبوع." : "No fixtures today. Try tomorrow or this week.")
+                : range === "tomorrow"
+                  ? (locale === "ar" ? "لا توجد مباريات مجدولة غداً. جرّب هذا الأسبوع." : "No fixtures tomorrow. Try this week.")
+                  : (locale === "ar" ? "لا توجد مباريات منشورة في هذا الأسبوع." : "No published fixtures this week.")
+            }
           />
         )}
       </section>
     </main>
   );
+}
+
+/** Empty-state heading that names the range the visitor is looking at. */
+function emptyTitle(range: Range, locale: "ar" | "en") {
+  if (range === "today") return locale === "ar" ? "لا توجد مباريات اليوم" : "No matches today";
+  if (range === "tomorrow") return locale === "ar" ? "لا توجد مباريات غداً" : "No matches tomorrow";
+  return locale === "ar" ? "لا توجد مباريات هذا الأسبوع" : "No matches this week";
+}
+
+/**
+ * Heading for a date group: "Today", "Tomorrow", or the formatted date.
+ *
+ * Comparison is on the ISO date string, so no timezone conversion happens and a
+ * fixture at 00:30 is never filed under the wrong day.
+ */
+function dateLabel(date: string, schedule: Schedule, locale: "ar" | "en") {
+  if (date === schedule.todayDate) return locale === "ar" ? "اليوم" : "Today";
+  if (date === schedule.tomorrowDate) return locale === "ar" ? "الغد" : "Tomorrow";
+  return locale === "ar" ? "" : "";
 }
 
 function DateGroup({
@@ -216,6 +286,8 @@ function DateGroup({
 }) {
   if (matches.length === 0) return null;
 
+  // Formatted from a UTC-anchored midnight so the label always names the same
+  // calendar day the fixture is stored against, in every visitor timezone.
   const label = new Intl.DateTimeFormat(locale === "ar" ? "ar-SA" : "en-GB", {
     dateStyle: "full",
     timeZone: "UTC",
@@ -224,8 +296,8 @@ function DateGroup({
   return (
     <section className="date-group">
       <div className="date-group-heading">
-        <h3>{title}</h3>
-        <span>{label}</span>
+        <h3>{title || label}</h3>
+        <span>{title ? label : ""}</span>
         <span className="date-group-count">{matches.length}</span>
       </div>
       <div className="match-grid">

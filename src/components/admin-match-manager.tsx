@@ -16,6 +16,8 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import AdminFixtureImport from "@/components/admin-fixture-import";
+import AdminTeamLogos from "@/components/admin-team-logos";
 import { COMPETITIONS } from "@/lib/sports/competitions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BRAND } from "@/lib/brand";
@@ -196,6 +198,19 @@ export default function AdminConsole() {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 2800);
   };
+
+  /** Reloads matches after an Excel import so the table reflects what was written. */
+  async function refreshMatches() {
+    try {
+      const response = await fetch("/api/admin/matches", { cache: "no-store" });
+      if (!response.ok) return;
+      const result = await response.json().catch(() => ({}));
+      const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+      setMatches(rows.map(mapMatch).sort(compareMatches));
+    } catch {
+      // The import already succeeded; a failed refresh only affects this view.
+    }
+  }
 
   async function signOut() {
     const client = createSupabaseBrowserClient();
@@ -508,6 +523,13 @@ export default function AdminConsole() {
     for (const list of map.values()) list.sort(compareStreams);
     return map;
   }, [streams]);
+
+  // Every distinct club name in the schedule, so a logo can be assigned to a
+  // team that exists only inside imported fixtures.
+  const fixtureTeamNames = useMemo(
+    () => [...new Set(matches.flatMap((match) => [match.homeTeam, match.awayTeam]))].sort((a, b) => a.localeCompare(b, "ar")),
+    [matches],
+  );
 
   const today = scheduleDate();
   const tomorrow = scheduleDate(1);
@@ -855,6 +877,15 @@ export default function AdminConsole() {
               </div>
             </div>
           </section>
+
+          <AdminFixtureImport onImported={() => void refreshMatches()} />
+
+          {/* Team crests are managed per club, so one upload covers every fixture
+              that club appears in — home or away. */}
+          <AdminTeamLogos
+            fixtureTeamNames={fixtureTeamNames}
+            onSaved={() => void refreshMatches()}
+          />
         </section>
       </div>
     </main>
