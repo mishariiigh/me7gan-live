@@ -289,6 +289,49 @@ console.log("\n══ 7. Today and Tomorrow remain subsets of the week ══");
     schedule.week.some((m) => m.fixtureId === "TOMORROW") === tomorrowIsInWeek);
 }
 
+console.log("\n══ 7b. Tomorrow is fetched even when it falls outside the week ══");
+{
+  // The regression this guards: when today is Sunday, tomorrow is next Monday.
+  // The query window previously ended at the week's Sunday, so a fixture on
+  // tomorrow was never fetched at all and the Tomorrow filter came back empty
+  // even though the match existed.
+  resetDatabase();
+  const today = MT.getScheduleDate();
+  const tomorrow = MT.getNextScheduleDate(today);
+  const bounds = MT.getWeekBounds(today);
+  const tomorrowIsNextWeek = tomorrow > bounds.weekEndDate;
+
+  DB.matches = [
+    { id: "1", fixture_id: "TODAY", match_date: today, kickoff_time: "19:30:00", competition: "La Liga",
+      home_team: "A", away_team: "B", home_team_logo: null, away_team_logo: null, published: true,
+      created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
+    { id: "2", fixture_id: "TOMORROW", match_date: tomorrow, kickoff_time: "21:00:00", competition: "La Liga",
+      home_team: "C", away_team: "D", home_team_logo: null, away_team_logo: null, published: true,
+      created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
+  ];
+
+  const schedule = await Matches.getPublicFixtureSchedule();
+
+  // This holds on every weekday, which is the point: the query window is widened
+  // to cover tomorrow, so the Tomorrow filter is never starved of its rows.
+  check("tomorrow is always fetched, whatever weekday today is",
+    schedule.tomorrow.map((m) => m.fixtureId).join() === "TOMORROW",
+    `tomorrow array was ${JSON.stringify(schedule.tomorrow.map((m) => m.fixtureId))}`);
+
+  check("today is always fetched", schedule.today.map((m) => m.fixtureId).join() === "TODAY");
+
+  // The week array must stay a strict Monday..Sunday window. When tomorrow is in
+  // the next week it belongs to the Tomorrow filter but NOT to this week.
+  check("the week array never extends past Sunday",
+    schedule.week.every((m) => m.matchDate <= schedule.weekEndDate),
+    JSON.stringify(schedule.week.map((m) => m.matchDate)));
+  check("the week array never starts before Monday",
+    schedule.week.every((m) => m.matchDate >= schedule.weekStartDate));
+  check("a next-week tomorrow is excluded from the week array",
+    schedule.week.some((m) => m.fixtureId === "TOMORROW") === !tomorrowIsNextWeek,
+    `tomorrowIsNextWeek=${tomorrowIsNextWeek}`);
+}
+
 console.log("\n══ 8. Unpublished matches never surface ══");
 {
   resetDatabase();

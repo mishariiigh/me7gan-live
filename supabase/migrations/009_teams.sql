@@ -55,9 +55,9 @@ create policy "teams are publicly readable"
 
 -- Only an administrator may create or change a team or its logo.
 drop policy if exists "admins manage teams" on public.teams;
-create policy "admins manage teams"
-  on public.teams for all to authenticated
-  using (public.is_admin()) with check (public.is_admin());
+  create policy "admins manage teams"
+    on public.teams for all to authenticated
+    using (public.is_admin()) with check (public.is_admin());
 
 grant select on public.teams to anon, authenticated;
 grant insert, update, delete on public.teams to authenticated;

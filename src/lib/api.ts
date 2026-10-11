@@ -18,10 +18,11 @@ export async function checkAdminRequest(request: Request, namespace: string, lim
 }
 
 export async function recordAdminAudit(action: string, entityType: string, entityId?: string, metadata: Record<string, unknown> = {}) {
-  const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+  const { createSupabaseServerClient, getServerUser } = await import("@/lib/supabase/server");
   const client = await createSupabaseServerClient();
   if (!client) return;
-  const { data: { user } } = await client.auth.getUser();
+  // An audit row is best-effort; a stale session must not surface as an error.
+  const { user } = await getServerUser(client);
   if (!user) return;
   await client.from("audit_logs").insert({ actor_id: user.id, action, entity_type: entityType, entity_id: entityId ?? null, metadata });
 }

@@ -1,5 +1,5 @@
 import { checkAdminRequest, recordAdminAudit } from "@/lib/api";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, getServerUser } from "@/lib/supabase/server";
 import { matchInput } from "@/lib/validation";
 import { isCompetition } from "@/lib/sports/competitions";
 
@@ -64,7 +64,10 @@ export async function POST(request: Request) {
 
   const client = await createSupabaseServerClient();
   if (!client) return Response.json({ error: "Database is not configured." }, { status: 503 });
-  const { data: { user } } = await client.auth.getUser();
+  // `getServerUser` maps a stale/dead session to `user: null` and clears the
+  // leftover cookies, so an expired session is reported once instead of
+  // repeating the same refresh-token error on every request.
+  const { user } = await getServerUser(client);
   if (!user) return Response.json({ error: "Administrator session expired." }, { status: 401 });
 
   const { data: fixtureId, error: idError } = await client

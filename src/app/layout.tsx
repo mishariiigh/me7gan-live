@@ -15,7 +15,9 @@ export const metadata: Metadata = {
   applicationName: BRAND.ar,
   // `src/app/favicon.ico` is picked up by the file convention and served
   // automatically; these entries add the larger PNG variants for installs,
-  // home-screen icons and richer browser tabs.
+  // home-screen icons and richer browser tabs. Every URL below is generated
+  // from the compact icon mark (ball + streaks) so the tab icon stays legible
+  // instead of scaling the wordmark down into a smudge.
   icons: {
     icon: [
       { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
@@ -96,7 +98,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <Link href="/">الرئيسية</Link>
                 <Link href="/upcoming">المباريات</Link>
                 <Link href="/live">مباشر الآن</Link>
-                <Link href="/admin">الإدارة</Link>
               </nav>
               <span className="footer-meta" dir="ltr">© 2026 {BRAND.en}</span>
             </div>

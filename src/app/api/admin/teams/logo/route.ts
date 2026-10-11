@@ -1,5 +1,5 @@
 import { checkAdminRequest, logSupabaseError, recordAdminAudit } from "@/lib/api";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, getServerUser } from "@/lib/supabase/server";
 import { normaliseTeamKey } from "@/lib/sports/team-identity";
 import {
   ALLOWED_LOGO_TYPES,
@@ -33,7 +33,9 @@ export async function POST(request: Request) {
 
   const client = await createSupabaseServerClient();
   if (!client) return Response.json({ error: "Database is not configured." }, { status: 503 });
-  const { data: { user } } = await client.auth.getUser();
+  // See matches/route.ts: a dead session reads as signed out and its stale
+  // cookies are cleared, rather than erroring on every request.
+  const { user } = await getServerUser(client);
   if (!user) return Response.json({ error: "Administrator session expired." }, { status: 401 });
 
   let form: FormData;

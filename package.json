@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:import": "node scripts/test-fixture-import.mjs",
     "test:teams": "node scripts/test-team-logos.mjs",
-    "test": "node scripts/test-fixture-import.mjs && node scripts/test-team-logos.mjs && node scripts/test-home-and-detail.mjs",
+    "test:session": "node scripts/test-stale-session.mjs",
+    "test": "node scripts/test-fixture-import.mjs && node scripts/test-team-logos.mjs && node scripts/test-home-and-detail.mjs && node scripts/test-stale-session.mjs",
     "test:pages": "node scripts/test-home-and-detail.mjs"
   },
   "dependencies": {

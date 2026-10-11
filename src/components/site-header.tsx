@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Home, Menu, Radio, ShieldCheck, X } from "lucide-react";
+import { CalendarDays, Home, Menu, Radio, X } from "lucide-react";
 import { useState } from "react";
 import { useLocale } from "@/components/locale-provider";
 import { BRAND } from "@/lib/brand";
@@ -35,9 +35,10 @@ export default function SiteHeader() {
             alt={`${BRAND.ar} — ${BRAND.en}`}
             width={BRAND.logoWidth}
             height={BRAND.logoHeight}
-            // The logo is rendered ~64-70px wide; without this hint next/image
-            // serves the largest source variant.
-            sizes="70px"
+            // Rendered at `BRAND.logoSize` px tall; the intrinsic ratio (1.83:1)
+            // then makes it ~74px wide. The hint keeps next/image from serving
+            // the full-resolution source into the header.
+            sizes="80px"
             priority
           />
         </Link>
@@ -60,9 +61,6 @@ export default function SiteHeader() {
           >
             <span className="header-action-label">{locale === "ar" ? "EN" : "عربي"}</span>
           </button>
-          <Link className="header-action header-admin" href="/admin" aria-label="لوحة الإدارة">
-            <ShieldCheck size={17} aria-hidden="true" />
-          </Link>
           <button
             className="header-action menu-toggle"
             type="button"
@@ -89,10 +87,6 @@ export default function SiteHeader() {
               {label}
             </Link>
           ))}
-          <Link className="nav-link" href="/admin" onClick={() => setMenuOpen(false)}>
-            <ShieldCheck size={17} aria-hidden="true" />
-            {locale === "ar" ? "لوحة الإدارة" : "Admin"}
-          </Link>
         </nav>
       )}
     </header>

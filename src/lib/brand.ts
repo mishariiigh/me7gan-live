@@ -23,7 +23,22 @@ export const BRAND = {
    * of being scaled down into a mostly-empty square.
    */
   logo: "/me7gan-logo.png",
-  /** Intrinsic pixel size of the cropped logo, used to preserve its ratio. */
-  logoWidth: 400,
-  logoHeight: 223,
+  /**
+   * Intrinsic pixel size of the cropped logo, used to preserve its ratio.
+   * The mark is a wide wordmark — 1052 x 574 ≈ 1.83:1 — NOT square, so the
+   * rendered box must stay proportional or the artwork will be stretched.
+   */
+  logoWidth: 1052,
+  logoHeight: 574,
+  /**
+   * Compact icon-only mark (ball + speed streaks + LIVE badge, no wordmark).
+   * Square, on the light canvas, and legible down to favicon size where the
+   * full wordmark would be an unreadable smudge.
+   */
+  icon: "/me7gan-live-icon.png",
+  /** Intrinsic size of the icon mark (square). */
+  iconWidth: 925,
+  iconHeight: 390,
+  /** Uniform height the header/footer render the wordmark at. */
+  logoSize: 40,
 } as const;
