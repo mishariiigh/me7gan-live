@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Home, Menu, Radio, X } from "lucide-react";
+import { CalendarDays, Home, Menu, Radio, Trophy, X } from "lucide-react";
 import { useState } from "react";
 import { useLocale } from "@/components/locale-provider";
 import { BRAND } from "@/lib/brand";
@@ -23,6 +23,9 @@ export default function SiteHeader() {
     { href: "/", label: locale === "ar" ? "الرئيسية" : "Home", icon: Home },
     { href: "/upcoming", label: locale === "ar" ? "المباريات" : "Matches", icon: CalendarDays },
     { href: "/live", label: locale === "ar" ? "مباشر الآن" : "Live", icon: Radio },
+    // The competitions index (the homepage's filter chips double as the entry
+    // point from content, this is the explicit navigation route).
+    { href: "/competitions", label: locale === "ar" ? "البطولات" : "Competitions", icon: Trophy },
   ];
 
   return (

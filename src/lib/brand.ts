@@ -24,12 +24,18 @@ export const BRAND = {
    */
   logo: "/me7gan-logo.png",
   /**
-   * Intrinsic pixel size of the cropped logo, used to preserve its ratio.
-   * The mark is a wide wordmark — 1052 x 574 ≈ 1.83:1 — NOT square, so the
+   * Intrinsic pixel size of the logo file, used so `next/image` reserves the
+   * correct box (no layout shift) and preserves the aspect ratio.
+   *
+   * The mark is a wide wordmark — 320 x 175 ≈ 1.83:1 — NOT square, so the
    * rendered box must stay proportional or the artwork will be stretched.
+   *
+   * The source is deliberately small: the logo renders at ≤80px wide, so a
+   * 320px master is crisp even on 3x displays while keeping `next/image` from
+   * offering a multi-thousand-pixel candidate for a 36px-tall image.
    */
-  logoWidth: 1052,
-  logoHeight: 574,
+  logoWidth: 320,
+  logoHeight: 175,
   /**
    * Compact icon-only mark (ball + speed streaks + LIVE badge, no wordmark).
    * Square, on the light canvas, and legible down to favicon size where the

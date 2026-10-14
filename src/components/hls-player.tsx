@@ -70,10 +70,31 @@ export default function HlsPlayer({ src, title, captions, onFatalError }: { src:
   const [message, setMessage] = useState("");
   const [retry, setRetry] = useState(0);
 
+  /**
+   * The error callback, read through a ref so it is NOT an effect dependency.
+   *
+   * If `onFatalError` were listed below, any parent re-render that produced a
+   * new function identity would destroy and rebuild the hls.js instance —
+   * aborting in-flight segment requests and re-fetching the manifest. Keeping it
+   * in a ref means the effect runs only when the source or retry count actually
+   * changes, which is the intended trigger.
+   *
+   * The ref is updated in an effect rather than during render: writing a ref
+   * while rendering is not safe under concurrent React, and the lint rule that
+   * flags it is right.
+   */
+  const fatalErrorRef = useRef(onFatalError);
+  useEffect(() => {
+    fatalErrorRef.current = onFatalError;
+  }, [onFatalError]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
     let disposed = false;
+    // Tracked so it can be cleared on unmount: it is scheduled outside hls.js,
+    // so `hls.destroy()` alone would not cancel it.
+    let stallTimer: number | null = null;
     setMessage("");
     console.info("[HLS] loading source:", src);
 
@@ -84,15 +105,19 @@ export default function HlsPlayer({ src, title, captions, onFatalError }: { src:
       const handleNativeError = () => {
         console.error("[HLS] native playback error (Safari path)");
         setMessage("تعذر تشغيل هذا المصدر. تحقق من صلاحية الرابط أو جرّب مصدراً آخر.");
-        onFatalError?.();
+        fatalErrorRef.current?.();
       };
       video.addEventListener("error", handleNativeError, { once: true });
       return () => { video.pause(); video.removeEventListener("error", handleNativeError); video.removeAttribute("src"); video.load(); };
     }
 
     if (!Hls.isSupported()) {
-      window.setTimeout(() => setMessage("هذا المتصفح لا يدعم تشغيل هذا النوع من البث."), 0);
-      return;
+      // Deferred so the effect body itself performs no synchronous state update.
+      const unsupported = window.setTimeout(
+        () => setMessage("هذا المتصفح لا يدعم تشغيل هذا النوع من البث."),
+        0,
+      );
+      return () => window.clearTimeout(unsupported);
     }
 
     const hls = new Hls({
@@ -144,10 +169,11 @@ export default function HlsPlayer({ src, title, captions, onFatalError }: { src:
         );
         hls.startLoad();
         // Only offer a fallback source if startLoad could not recover in time.
-        window.setTimeout(() => {
+        // The timer is tracked so it cannot fire after unmount.
+        stallTimer = window.setTimeout(() => {
           if (disposed) return;
           if (hls.media && hls.media.readyState >= 1) return;
-          onFatalError?.();
+          fatalErrorRef.current?.();
         }, 8000);
         return;
       }
@@ -159,14 +185,22 @@ export default function HlsPlayer({ src, title, captions, onFatalError }: { src:
       }
 
       setMessage("تعذر تشغيل هذا المصدر. تحقق من صلاحية الرابط أو جرّب مصدراً آخر.");
-      onFatalError?.();
+      fatalErrorRef.current?.();
       hls.destroy();
       hlsRef.current = null;
       window.setTimeout(() => { if (!disposed) setRetry((value) => value + 1); }, 1800);
     });
 
-    return () => { disposed = true; hls.destroy(); hlsRef.current = null; };
-  }, [onFatalError, src, retry]);
+    // `hls.destroy()` detaches the media, stops loading and tears down the
+    // worker, so no instance, listener or timer outlives the component. The
+    // stall timer is cleared explicitly because it is scheduled outside hls.js.
+    return () => {
+      disposed = true;
+      if (stallTimer !== null) window.clearTimeout(stallTimer);
+      hls.destroy();
+      hlsRef.current = null;
+    };
+  }, [src, retry]);
 
   return (
     <div className="player-frame">

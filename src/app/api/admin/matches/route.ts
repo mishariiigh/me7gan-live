@@ -2,6 +2,7 @@ import { checkAdminRequest, recordAdminAudit } from "@/lib/api";
 import { createSupabaseServerClient, getServerUser } from "@/lib/supabase/server";
 import { matchInput } from "@/lib/validation";
 import { isCompetition } from "@/lib/sports/competitions";
+import { revalidateFixtureData } from "@/lib/sports/revalidate";
 
 const privateHeaders = { "cache-control": "private, no-store" };
 
@@ -87,5 +88,9 @@ export async function POST(request: Request) {
     match_date: data.match_date,
     competition: data.competition,
   });
+  await recordAdminAudit("create", "match", data.id, { fixture_id: data.fixture_id });
+  // A new fixture must appear on the public schedule immediately, not after the
+  // cache window elapses.
+  revalidateFixtureData();
   return Response.json({ data }, { status: 201, headers: privateHeaders });
 }

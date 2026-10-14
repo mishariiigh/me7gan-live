@@ -9,7 +9,22 @@ import { getPublicMatchByFixtureId } from "@/lib/sports/matches";
 import { formatKickoffTime, formatMatchDate } from "@/lib/sports/match-types";
 import { BRAND } from "@/lib/brand";
 
-export const dynamic = "force-dynamic";
+// Caching status of this page's data, stated precisely:
+//
+//   • authorized streams      -> CACHED (lib/streaming/fixture-service.ts)
+//   • official watch links    -> CACHED (lib/streaming/official-watch-links.ts)
+//   • the match row itself    -> NOT cached (getPublicMatchByFixtureId uses the
+//                                cookie-reading server client, so it runs per
+//                                request)
+//
+// All three are tagged with `FIXTURE_CACHE_TAG`, so an admin edit or a fixture
+// import calls `revalidateFixtureData()` and the cached two are dropped at once.
+//
+// The page itself still renders per request because the match row is read with
+// the session-aware client. That is a deliberate, separate trade-off: making the
+// page static would require moving the match row onto the anonymous client, and
+// this change is about the player, not about restructuring data access. The
+// measured effect of caching the two stream lookups is reported in the summary.
 
 export default async function MatchPage({ params }: PageProps<"/match/[fixtureId]">) {
   const { fixtureId } = await params;

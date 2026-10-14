@@ -295,11 +295,13 @@
 .team {
   align-items: center;
   display: flex;
-  gap: 10px;
+  /* Tightened from 10px. Every pixel here comes straight out of the team name,
+     which is the thing that was truncating. */
+  gap: 7px;
   min-width: 0;
 }
 
-.team-sm { gap: 8px; }
+.team-sm { gap: 6px; }
 
 .team-logo {
   background-color: var(--color-background-tertiary);
@@ -309,19 +311,42 @@
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-sm);
   flex: 0 0 auto;
+  /* Never let a long name squash the crest. */
+  aspect-ratio: 1;
 }
 
 .team-sm .team-logo { height: 26px; width: 26px; }
-.team-md .team-logo { height: 40px; width: 40px; }
-.team-lg .team-logo { height: 58px; width: 58px; }
+/* 32px rather than 40px: still an easily recognisable crest, but it returns 8px
+   to the team name in a card whose text column was the real constraint. */
+.team-md .team-logo { height: 32px; width: 32px; }
+.team-lg .team-logo { height: 52px; width: 52px; }
 
 .team-name {
   color: var(--color-text);
   font-size: var(--text-sm);
   font-weight: 600;
+  /* Allow a long club name to use two lines instead of being cut to
+     "Barc...". `anywhere` breaks Arabic and long unbroken Latin names too. */
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  /* Cap at two lines; beyond that a very long name would dominate the card. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+/* Below this width even two lines cannot hold a long name, so fall back to a
+   single truncated line — an ellipsis is preferable to a three-line card that
+   breaks the grid's rhythm. */
+@media (max-width: 420px) {
+  .team-name {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .team-lg .team-name { font-size: var(--text-lg); font-weight: 700; }
@@ -336,9 +361,23 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   display: grid;
-  gap: 16px;
-  padding: 16px;
+  gap: 14px;
+  /* Reduced from 16px: every pixel here is a pixel the team names do not get. */
+  padding: 14px;
+  /* The wrapper is now a div (so an admin button can sit beside the link
+     without nesting a button inside an anchor), which makes it the
+     positioning context for that button. */
+  position: relative;
   transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
+}
+
+/* The anchor covers the card's content. It must not add its own colour or
+   underline, and it must not swallow the admin button layered above it. */
+.match-card-link {
+  color: inherit;
+  display: grid;
+  gap: inherit;
+  text-decoration: none;
 }
 
 .match-card:hover {
@@ -360,17 +399,57 @@
 .match-card-body {
   align-items: center;
   display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /*
+   * Stacked rows, not three columns.
+   *
+   * The previous `1fr auto 1fr` grid split the card between two teams and a
+   * "VS" label, so each name received roughly a quarter of the card width —
+   * which is why "Barcelona" rendered as "Barc...". Stacking the teams gives
+   * each name the full inner width, and the versus label becomes a small
+   * centred divider rather than a column that steals space from both sides.
+   */
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .match-card-versus {
   color: var(--color-text-muted);
-  font-size: var(--text-xs);
+  font-size: 10px;
   font-weight: 700;
+  /* A compact divider between the two stacked teams, with hairlines either
+     side so it reads as a separator rather than a stray label. */
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
-.match-card-featured .match-card-body { gap: 18px; padding-block: 6px; }
+.match-card-versus::before,
+.match-card-versus::after {
+  background: var(--color-border-light);
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+}
+
+/* Wraps a team display with its favourite star. The row fills its grid slot
+   (min-width: 0 lets a long club name wrap or truncate instead of overflowing)
+   and the star stays a fixed size beside it. */
+.match-card-team-row {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The name takes all remaining width; the star keeps its size. */
+.match-card-team-row > .team { flex: 1 1 auto; min-width: 0; }
+
+/* Logos never shrink or get squashed by a long name. */
+.team-logo { flex: 0 0 auto; }
+
+.match-card-featured .match-card-body { gap: 10px; padding-block: 6px; }
 
 .match-card-foot {
   align-items: center;
@@ -441,10 +520,12 @@
 
 /* ── GRIDS ─────────────────────────────────────────────────────────────── */
 
+/* A slightly narrower minimum lets three cards fit where two did on a laptop,
+   and gives every card more room per team. */
 .match-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 
 .match-grid-2 { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
@@ -2091,7 +2172,9 @@
   .header-action-label { display: none; }
   .hero { padding-block: 26px; }
   .hero-stats { gap: 18px; }
-  .match-card-body { gap: 14px; grid-template-columns: minmax(0, 1fr); }
+  .match-card-body { gap: 8px; }
+  /* The versus divider is a nicety, not information: at this width the stacked
+     teams read perfectly well without it, and it saves vertical space. */
   .match-card-versus { display: none; }
   .match-scoreboard { grid-template-columns: minmax(0, 1fr); }
   .scoreboard-versus { padding-block: 2px; }
@@ -2112,4 +2195,896 @@
   .match-card { padding: 14px; }
   .brand-word { font-size: var(--text-base); }
   .hero-title { font-size: var(--text-2xl); }
+}
+
+/* =========================================================================
+   MATCH FILTERS — competition chips, team search, favourites
+   ========================================================================= */
+
+.match-filters {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+/* The chip strip scrolls horizontally *inside itself*. `overflow-x: auto` on a
+   flex container is what keeps a long competition list from widening the page:
+   the strip is the scroll port, not the document. */
+.chip-scroller {
+  display: flex;
+  gap: 8px;
+  /* A min-width of 0 lets the flex item shrink below its content width, which
+     is required for the overflow to engage rather than push the page wide. */
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  /* Snap so a flick lands on a chip boundary rather than mid-label. */
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chip-scroller > .filter-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.match-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ── TEAM SEARCH ──────────────────────────────────────────────────────── */
+
+.search-field {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  display: flex;
+  flex: 1 1 260px;
+  gap: 8px;
+  min-width: 0;
+  padding-inline: 14px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.search-field:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.search-field-icon { color: var(--color-text-muted); flex: 0 0 auto; }
+
+.search-field input {
+  background: transparent;
+  border: 0;
+  color: var(--color-text);
+  flex: 1 1 auto;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  min-height: 44px;
+  min-width: 0;
+  outline: none;
+}
+
+.search-field input::placeholder { color: var(--color-text-muted); }
+
+/* Safari renders a native clear affordance on type="search"; we provide our own
+   labelled button, so suppress the duplicate. */
+.search-field input::-webkit-search-cancel-button { display: none; }
+
+.search-clear {
+  align-items: center;
+  background: var(--color-background-tertiary);
+  border: 0;
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
+}
+
+.search-clear:hover { background: var(--color-border); color: var(--color-text); }
+
+/* ── FAVOURITES TOGGLE ────────────────────────────────────────────────── */
+
+.favourites-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+}
+
+.filter-chip-count {
+  background: var(--color-background-tertiary);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 20px;
+  padding: 1px 6px;
+  text-align: center;
+}
+
+.favourites-toggle.active .filter-chip-count {
+  background: rgba(255, 255, 255, .25);
+  color: var(--color-primary-contrast);
+}
+
+.match-filters-status {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  margin: 0;
+}
+
+/* ── FAVOURITE STAR (on match cards) ──────────────────────────────────── */
+
+.favourite-toggle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 30px;
+  justify-content: center;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  width: 30px;
+}
+
+.favourite-toggle:hover {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+/* Selected state: colour *and* a filled glyph, so the state is not conveyed by
+   colour alone. */
+.favourite-toggle.active { color: var(--color-warning); }
+
+.favourite-toggle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+/* =========================================================================
+   COMPETITION GROUPING (within a date group)
+   ========================================================================= */
+
+.competition-group + .competition-group { margin-top: 20px; }
+
+.competition-group-heading {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  gap: 8px;
+  letter-spacing: .01em;
+  margin-bottom: 10px;
+  text-transform: none;
+}
+
+.competition-group-count {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* =========================================================================
+   NEXT-MATCH PANEL (homepage, when nothing is live)
+   ========================================================================= */
+
+.next-match {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: clamp(16px, 2.4vw, 24px);
+}
+
+.next-match-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.next-match-head .eyebrow {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.next-match-countdown {
+  align-items: center;
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-pill);
+  color: var(--color-primary);
+  display: inline-flex;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  gap: 6px;
+  padding: 5px 12px;
+}
+
+.next-match-body {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.next-match-team { min-width: 0; }
+
+.next-match-meta {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+}
+
+.next-match-kickoff {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  flex-wrap: wrap;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+}
+
+.next-match-date { color: var(--color-text-muted); font-size: var(--text-xs); font-weight: 600; }
+
+@media (max-width: 640px) {
+  /* Stack on small screens: three columns squeeze the team names to nothing. */
+  .next-match-body { grid-template-columns: minmax(0, 1fr); justify-items: stretch; }
+  .next-match-meta { order: 2; }
+  .next-match-team { order: 1; }
+  .next-match-team:last-child { order: 3; }
+}
+
+/* Compact empty state for the next-match panel (no upcoming fixtures). */
+.next-match-empty {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.next-match-empty p {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+/* Refresh-failure note on /live. Informational, never destructive: the fixtures
+   already on screen stay visible. */
+.live-refresh-note {
+  background: var(--color-warning-soft, var(--color-background-tertiary));
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  margin-bottom: 14px;
+  padding: 8px 12px;
+}
+
+/* =========================================================================
+   COMPETITION PAGES
+   ========================================================================= */
+
+/* The badge is a link on competition pages but plain text elsewhere. It must
+   look identical in both cases so a match card does not change appearance
+   depending on the data behind it. */
+.badge-competition-link {
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.badge-competition-link:hover {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* States the covered date window, so a visitor does not read the page as a
+   complete season archive. */
+.competition-window-note {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  font-size: var(--text-xs);
+  gap: 6px;
+  margin: 22px 0 0;
+}
+
+/* ── Competitions index ──────────────────────────────────────────────── */
+
+.competition-index {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.competition-card {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 16px 18px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.competition-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.competition-card-name {
+  align-items: center;
+  color: var(--color-text);
+  display: inline-flex;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 800;
+  gap: 8px;
+  min-width: 0;
+}
+
+.competition-card-name svg { color: var(--color-primary); flex: 0 0 auto; }
+
+.competition-card-meta {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  font-size: var(--text-xs);
+  gap: 6px;
+}
+/* =========================================================================
+   INLINE ADMIN — match-card link controls
+   ========================================================================= */
+
+/* Small, unobtrusive control in the card's top corner. It is a sibling of the
+   card link, so clicking it never navigates to the match page. */
+.match-admin-link {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  gap: 5px;
+  padding: 5px 11px;
+  position: absolute;
+  /* Opposite corner from the card's own badges, so it never overlaps them. */
+  inset-block-start: 10px;
+  inset-inline-end: 10px;
+  /* Above the card link, which fills the wrapper. */
+  z-index: 2;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.match-admin-link:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.match-admin-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* The card's own head row must not run under the admin button. */
+.match-card-head { padding-inline-end: 0; }
+
+@media (max-width: 640px) {
+  /* Icon only on narrow screens: the label would crowd the card. */
+  .match-admin-link span { display: none; }
+  .match-admin-link { padding: 6px; }
+}
+
+/* =========================================================================
+   INLINE ADMIN — link editor dialog
+   ========================================================================= */
+
+.link-editor-backdrop {
+  align-items: center;
+  /* Dimmed full-screen backdrop. Now that the overlay is portalled to
+     `document.body`, `position: fixed` resolves against the viewport rather
+     than against a match card. */
+  background: rgba(15, 23, 42, .55);
+  display: flex;
+  /* `inset: 0` covers the whole viewport; `100dvh` is used for the height so a
+     mobile browser whose toolbars shrink the visual viewport does not leave a
+     strip of undimmed page at the bottom (`100vh` overshoots there). */
+  inset: 0;
+  height: 100dvh;
+  justify-content: center;
+  /* Above the sticky header (40) and every card overlay. */
+  z-index: 100;
+  padding: 16px;
+  position: fixed;
+  /* The backdrop itself scrolls when the dialog is taller than the viewport,
+     so the page behind it never has to. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.link-editor {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  gap: 14px;
+  /* Bounded by the viewport so a long list of sources scrolls inside the dialog
+     instead of pushing it past the screen. */
+  max-height: calc(100dvh - 32px);
+  max-width: 520px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px;
+  width: 100%;
+}
+
+/* On a phone the dialog should use nearly the full width, with just enough
+   margin that the rounded corners and backdrop remain visible. */
+@media (max-width: 600px) {
+  .link-editor-backdrop { padding: 10px; }
+  .link-editor {
+    max-height: calc(100dvh - 20px);
+    max-width: none;
+  }
+}
+
+.link-editor-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+/* The close button is the first child in the DOM. In an RTL document the flex
+   row lays out right-to-left, so "first" is the visual top-RIGHT — which is
+   where an Arabic reader expects the dismiss control. Forcing it with
+   `order`/`margin-inline-start` would place it correctly in Arabic and wrongly
+   in English, so the DOM order is left to follow the document direction. */
+.link-editor-head > .link-editor-close { order: 0; }
+.link-editor-head > div { order: 1; }
+
+/* ── Match context in the panel header ───────────────────────────────── */
+
+.link-editor-match {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.link-editor-match em {
+  color: var(--color-text-muted);
+  font-style: normal;
+  font-weight: 600;
+  padding-inline: 3px;
+}
+
+.link-editor-match-meta {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.link-editor-head div { display: grid; gap: 2px; min-width: 0; }
+.link-editor-head strong { font-size: var(--text-base); font-weight: 800; }
+.link-editor-head span { color: var(--color-text-muted); font-size: var(--text-xs); }
+
+.link-editor-close {
+  align-items: center;
+  background: var(--color-background-tertiary);
+  border: 0;
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.link-editor-close:hover { background: var(--color-border); color: var(--color-text); }
+
+.link-editor-list { display: grid; gap: 8px; }
+
+.link-editor-empty {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  font-size: var(--text-xs);
+  gap: 6px;
+  margin: 0;
+  padding: 10px 0;
+}
+
+.link-row {
+  align-items: start;
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+/* A disabled link is dimmed but still fully readable and editable. */
+.link-row.inactive { opacity: .62; }
+
+.link-row-main { display: grid; gap: 3px; min-width: 0; flex: 1 1 200px; }
+.link-row-main strong { font-size: var(--text-sm); font-weight: 700; }
+
+.link-row-url {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-row-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.link-tag {
+  background: var(--color-background-tertiary);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+}
+
+.link-tag-on { background: var(--color-primary-soft); color: var(--color-primary); }
+.link-tag-off { background: var(--color-background-tertiary); color: var(--color-text-muted); }
+
+.link-row-actions { display: flex; gap: 4px; }
+
+.link-icon-button {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.link-icon-button:hover { border-color: var(--color-border-strong); color: var(--color-text); }
+.link-icon-button.danger:hover { border-color: var(--color-danger, #b42318); color: var(--color-danger, #b42318); }
+.link-icon-button:disabled { cursor: not-allowed; opacity: .5; }
+
+.dot { background: var(--color-text-muted); border-radius: 50%; height: 9px; width: 9px; }
+.dot-on { background: var(--color-primary); }
+
+/* Inline delete confirmation, so a destructive action is never one click. */
+.link-row-confirm {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  gap: 8px;
+  justify-content: space-between;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.link-confirm {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
+.link-confirm.danger {
+  background: var(--color-danger, #b42318);
+  border-color: var(--color-danger, #b42318);
+  color: #fff;
+}
+
+.link-editor-form {
+  border-top: 1px solid var(--color-border-light);
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+}
+
+.link-editor-form-title {
+  align-items: center;
+  color: var(--color-text);
+  display: inline-flex;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  gap: 6px;
+}
+
+.link-field { display: grid; gap: 4px; }
+.link-field > span { color: var(--color-text-secondary); font-size: var(--text-xs); font-weight: 700; }
+
+.link-field input,
+.link-field select {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  min-height: 40px;
+  padding-inline: 12px;
+  width: 100%;
+}
+
+.link-field input:focus,
+.link-field select:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.link-field-row { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+
+.link-check {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  font-size: var(--text-sm);
+  gap: 8px;
+}
+
+.link-editor-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  margin: 0;
+}
+
+.link-editor-error {
+  background: var(--color-danger-soft, #fef3f2);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger, #b42318);
+  font-size: var(--text-xs);
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.link-editor-notice {
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-sm);
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.link-editor-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.link-save { align-items: center; display: inline-flex; gap: 6px; }
+
+/* The always-available exit sits apart from the save action, so it is not
+   mistaken for it and is not the nearest target to a save click. */
+.link-close-action { margin-inline-start: auto; }
+
+.link-editor-close:disabled,
+.link-close-action:disabled { cursor: not-allowed; opacity: .5; }
+
+.spin { animation: spin 1s linear infinite; }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .link-field-row { grid-template-columns: 1fr; }
+  .link-editor { padding: 14px; }
+}/* =========================================================================
+   INLINE ADMIN — multi-source link panel
+   ========================================================================= */
+
+/* One source per fieldset, so a group of related inputs is semantically a
+   group and the legend names it ("Link source 2"). */
+.link-source {
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px 12px;
+}
+
+.link-source-legend {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding-inline: 2px;
+  width: 100%;
+}
+
+.link-source-legend > span {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  gap: 6px;
+}
+
+/* Marks a row that already exists in the database, so it is obvious which rows
+   deleting would actually remove. */
+.link-source-saved {
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-pill);
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+}
+
+.link-remove {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 4px;
+  padding: 3px 8px;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.link-remove:hover:not(:disabled) {
+  border-color: var(--color-danger, #b42318);
+  color: var(--color-danger, #b42318);
+}
+
+.link-remove:disabled { cursor: not-allowed; opacity: .5; }
+
+/* Per-field validation message, directly under the input it belongs to. */
+.link-field-error {
+  color: var(--color-danger, #b42318);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.link-field input[aria-invalid="true"],
+.link-field input[aria-invalid="true"]:focus {
+  border-color: var(--color-danger, #b42318);
+}
+
+/* Per-row save outcome. */
+.link-source-status {
+  align-items: center;
+  display: flex;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 5px;
+  margin: 0;
+}
+
+.link-source-status.ok { color: var(--color-primary); }
+.link-source-status.fail { color: var(--color-danger, #b42318); }
+
+/* "Add another link source" — a full-width dashed target so it reads as an
+   append action rather than a submit button. */
+.link-add-source {
+  align-items: center;
+  background: transparent;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  gap: 6px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+  width: 100%;
+}
+
+.link-add-source:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.link-add-source:disabled { cursor: not-allowed; opacity: .5; }
+
+@media (max-width: 480px) {
+  /* The remove label would crowd the legend on a narrow phone; the icon plus
+     its aria-label still conveys the action. */
+  .link-remove > span { display: none; }
+  .link-remove { padding: 5px; }
+}/* =========================================================================
+   PLAYER — deferred-load placeholder
+   ========================================================================= */
+
+/* Sits inside the existing `.player-frame`, which already reserves a stable
+   16:9 box, so showing the placeholder and later the iframe causes no layout
+   shift. It is a real button so it is keyboard reachable and announced. */
+.player-placeholder {
+  align-items: center;
+  background: linear-gradient(160deg, var(--color-background-secondary), var(--color-background-tertiary));
+  border: 0;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  height: 100%;
+  justify-items: center;
+  padding: 18px;
+  text-align: center;
+  width: 100%;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.player-placeholder:hover { color: var(--color-text); }
+.player-placeholder:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -3px; }
+
+.player-placeholder-icon {
+  align-items: center;
+  background: var(--color-primary);
+  border-radius: 50%;
+  color: var(--color-primary-contrast);
+  display: inline-flex;
+  height: 52px;
+  justify-content: center;
+  margin-bottom: 2px;
+  width: 52px;
+  transition: transform var(--transition-fast);
+}
+
+.player-placeholder:hover .player-placeholder-icon { transform: scale(1.06); }
+
+.player-placeholder strong { font-family: var(--font-display); font-size: var(--text-base); font-weight: 800; }
+
+.player-placeholder-note {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  max-width: 34ch;
 }

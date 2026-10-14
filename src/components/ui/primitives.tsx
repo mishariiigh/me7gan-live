@@ -4,7 +4,9 @@
  * theme variables in one place.
  */
 
+import Link from "next/link";
 import { Radio, Trophy } from "lucide-react";
+import { competitionSlug, isCompetition } from "@/lib/sports/competitions";
 
 /* ── LIVE BADGE ────────────────────────────────────────────────────────── */
 
@@ -20,11 +22,31 @@ export function LiveBadge({ label = "مباشر" }: { label?: string }) {
 /* ── COMPETITION BADGE ─────────────────────────────────────────────────── */
 
 export function CompetitionBadge({ competition }: { competition: string }) {
-  return (
-    <span className="badge badge-competition">
+  const content = (
+    <>
       <Trophy size={12} aria-hidden="true" />
       {competition}
-    </span>
+    </>
+  );
+
+  // A competition we publish a page for becomes a link; anything else (a
+  // fixture whose competition is outside the canonical list) stays plain text,
+  // so the badge never points at a 404.
+  if (!isCompetition(competition)) {
+    return <span className="badge badge-competition">{content}</span>;
+  }
+
+  return (
+    <Link
+      className="badge badge-competition badge-competition-link"
+      href={`/competition/${competitionSlug(competition)}`}
+      // The badge sits inside a card-wide link, so the click must not bubble into
+      // the match-detail navigation.
+      onClick={(event) => event.stopPropagation()}
+      aria-label={`${competition} — عرض المباريات`}
+    >
+      {content}
+    </Link>
   );
 }
 

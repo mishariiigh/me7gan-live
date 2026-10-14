@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Radio } from "lucide-react";
-import MatchesListing from "@/components/matches-listing";
+import LiveMatches from "@/components/live-matches";
 import { getLiveMatches, getPublicFixtureSchedule } from "@/lib/sports/matches";
 import { BRAND } from "@/lib/brand";
 
-export const dynamic = "force-dynamic";
+// Cached through `getLiveMatches`, whose revalidate window is deliberately short
+// (see `lib/sports/matches.ts`) so a match going live is visible promptly without
+// every request hitting Supabase.
 
 export const metadata: Metadata = {
   title: "مباشر الآن",
@@ -42,7 +44,8 @@ export default async function LivePage() {
       {error ? (
         <div className="fixture-list-error" role="alert">تعذر تحميل المباريات. حاول إعادة تحميل الصفحة.</div>
       ) : (
-        <MatchesListing fixtureSchedule={fixtureSchedule} matches={matches} mode="live" />
+        // Polling is enabled only here — see the component for the rationale.
+        <LiveMatches fixtureSchedule={fixtureSchedule} initialMatches={matches} />
       )}
     </main>
   );

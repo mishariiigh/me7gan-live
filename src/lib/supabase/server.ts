@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import {
@@ -8,6 +9,25 @@ import {
   logDeadSessionOnce,
   storedSessionExpired,
 } from "@/lib/supabase/auth-session";
+
+/**
+ * Creates a Supabase client for reading PUBLIC data inside a cache scope.
+ *
+ * Unlike `createSupabaseServerClient`, this does not touch `cookies()`, which
+ * Next.js forbids inside `unstable_cache` (the cache key would be unstable).
+ * Public fixture data is readable by the `anon` role under the existing RLS
+ * policies and does not vary by visitor, so an anonymous client is both correct
+ * and safe to share: the anon key plus RLS is exactly the boundary an
+ * unauthenticated browser already has, and no private data is reachable.
+ *
+ * Session persistence and token refresh are disabled because there is no user.
+ */
+export function createPublicSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
 
 export async function createSupabaseServerClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

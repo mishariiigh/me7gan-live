@@ -70,9 +70,10 @@ console.log("\n══ 1. Dead-session detection (real source) ══");
 check("refresh_token_not_found is a dead session", isDeadSessionError({ code: "refresh_token_not_found" }));
 check("refresh_token_already_used is a dead session", isDeadSessionError({ code: "refresh_token_already_used" }));
 check("session_expired is a dead session", isDeadSessionError({ code: "session_expired" }));
-check("AuthSessionMissingError is a dead session", isDeadSessionError({ name: "AuthSessionMissingError" }));
+check("AuthSessionMissingError is NOT a dead session (it just means 'logged out')", isDeadSessionError({ name: "AuthSessionMissingError", message: "Auth session missing!" }) === false);
 check("null is not a dead session", isDeadSessionError(null) === false);
 check("undefined is not a dead session", isDeadSessionError(undefined) === false);
+check("a genuine dead refresh token IS a dead session", isDeadSessionError({ name: "AuthApiError", code: "validation_failed", message: "Refresh token is not valid" }));
 check("session_not_found is a dead session", isDeadSessionError({ code: "session_not_found" }));
 
 // These MUST NOT be treated as dead sessions — they are real problems.

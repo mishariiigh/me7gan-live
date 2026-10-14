@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Tv } from "lucide-react";
 import EmbedPlayer from "@/components/embed-player";
 import HlsPlayer from "@/components/hls-player";
@@ -42,14 +42,37 @@ export default function FixtureStreamPlayer({
   const activeIndex = Math.max(0, sources.findIndex((source) => source.id === selectedId));
   const activeSource = sources[activeIndex];
 
+  /**
+   * The fallback handler, kept at a STABLE identity across renders.
+   *
+   * This is critical for performance. `HlsPlayer`'s effect lists `onFatalError`
+   * in its dependency array, and that effect is what creates and destroys the
+   * hls.js instance. A `useCallback` depending on `sources` would get a new
+   * identity on every parent render (because `sources` is a fresh array each
+   * time), which tore the player down and rebuilt it — aborting in-flight
+   * segment requests and re-fetching the manifest repeatedly.
+   *
+   * Reading the current values from a ref instead means the identity never
+   * changes, so the player is initialised once per selected source and survives
+   * every unrelated re-render (state changes, polling, `router.refresh()`).
+   *
+   * The ref is written in an effect, not during render, because mutating a ref
+   * while rendering is unsafe under concurrent React.
+   */
+  const latest = useRef({ activeIndex: 0, sources: [] as AuthorizedFixtureStream[] });
+  useEffect(() => {
+    latest.current = { activeIndex, sources };
+  });
+
   const moveToFallback = useCallback(() => {
-    if (activeIndex + 1 < sources.length) {
-      setSelectedId(sources[activeIndex + 1].id);
+    const { activeIndex: index, sources: list } = latest.current;
+    if (index + 1 < list.length) {
+      setSelectedId(list[index + 1].id);
       setNotice("تعذر تشغيل المصدر الحالي؛ تم التبديل إلى المصدر الاحتياطي.");
     } else {
       setNotice("تعذر تشغيل مصدر البث. جرّب إعادة المحاولة أو اختر مصدراً آخر.");
     }
-  }, [activeIndex, sources]);
+  }, []);
 
   // Nothing playable, but an authorized external link exists: show the link
   // instead of a broken player. The copy never implies a video is playing here.
@@ -84,6 +107,7 @@ export default function FixtureStreamPlayer({
           key={activeSource.id}
           src={routed.url}
           title={`${title} · ${activeSource.provider_name}`}
+          providerName={activeSource.provider_name}
           onFatalError={moveToFallback}
         />
       ) : (

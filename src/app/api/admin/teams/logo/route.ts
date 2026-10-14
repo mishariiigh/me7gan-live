@@ -1,6 +1,7 @@
 import { checkAdminRequest, logSupabaseError, recordAdminAudit } from "@/lib/api";
 import { createSupabaseServerClient, getServerUser } from "@/lib/supabase/server";
 import { normaliseTeamKey } from "@/lib/sports/team-identity";
+import { revalidateFixtureData } from "@/lib/sports/revalidate";
 import {
   ALLOWED_LOGO_TYPES,
   MAX_LOGO_BYTES,
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
     }
     if (error) return Response.json({ error }, { status: 400 });
     await recordAdminAudit("delete", "team_logo", team?.team_key, { team: teamName });
+    revalidateFixtureData();
     return Response.json({ data: { teamName, logoUrl: null } }, { headers: privateHeaders });
   }
 
@@ -131,6 +133,9 @@ export async function POST(request: Request) {
   }
 
   await recordAdminAudit("update", "team_logo", team.team_key, { team: team.name, logoUrl });
+  // A club's crest is resolved onto every fixture at read time, so a single
+  // upload changes many public pages at once.
+  revalidateFixtureData();
 
   // The caller gets the refreshed index so the UI can show the effect without a
   // second round trip.

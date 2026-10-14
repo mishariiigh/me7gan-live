@@ -83,14 +83,22 @@ export type AuthFailure = {
  * stale". Only these are handled silently; everything else is a real error and
  * must keep surfacing.
  *
- * `session_not_found` and the missing-session error are included because they
- * describe the same end state (there is no usable session), and clearing the
- * leftover cookies is equally correct for them.
+ * IMPORTANT: `AuthSessionMissingError` is deliberately NOT included.
+ *
+ * Supabase returns it whenever there is simply no session in storage — which is
+ * the ordinary state of every logged-out visitor, not a stale cookie. Treating
+ * it as "dead session" made each anonymous request to a protected route log
+ * "stale Supabase session cookies detected" and attempt a cookie clear, when
+ * there was nothing to clear. Verified against the live auth server:
+ *
+ *   no cookie    -> AuthSessionMissingError  "Auth session missing!"
+ *   dead cookie  -> AuthApiError (validation_failed) "Refresh token is not valid"
+ *
+ * The genuine dead-session case is always an `AuthApiError` carrying one of the
+ * refresh-token codes, or the refresh-token message.
  */
 export function isDeadSessionError(error: AuthFailure | null | undefined): boolean {
   if (!error) return false;
-  // `AuthSessionMissingError` has no code; it means "no session in storage".
-  if (error.name === "AuthSessionMissingError") return true;
   if (error.code && DEAD_SESSION_CODES.has(error.code)) return true;
   // Match the message as well: a dead refresh token can surface as
   // `validation_failed` depending on the project's API version (see above).
@@ -183,23 +191,56 @@ export function storedSessionExpired(
   }
 }
 
-const logged = new Set<string>();
+const LOG_MEMORY = Symbol.for("me7gan-live.dead-session-log");
 
 /**
- * Logs a dead-session event **once per process** per code.
+ * Process-global memory of what has already been logged.
  *
- * The same stale cookie would otherwise be reported on every render, flooding
- * the logs with a single expected condition. Never includes token material —
- * only the non-sensitive error code and message.
+ * A module-level `Set` is **not** enough here. Next compiles the middleware
+ * (`proxy.ts`) and the route handlers into separate server bundles, and each
+ * bundle gets its own copy of this module — so a module-scoped Set produced one
+ * line per bundle for the same underlying condition.
+ *
+ * Keying off `globalThis` via `Symbol.for` gives every bundle the same object,
+ * which is the pattern Next.js itself uses for cross-bundle singletons.
+ */
+function logMemory(): Set<string> {
+  const host = globalThis as typeof globalThis & { [LOG_MEMORY]?: Set<string> };
+  if (!host[LOG_MEMORY]) host[LOG_MEMORY] = new Set<string>();
+  return host[LOG_MEMORY];
+}
+
+/**
+ * Logs a dead-session event **once per process per condition**.
+ *
+ * The key deliberately excludes the calling scope. A single stale cookie is
+ * observed independently by more than one code path — the proxy (on `/admin/*`)
+ * and `getAdminUser()` (on the session endpoint and admin pages) both build a
+ * Supabase client and both see the same dead session. Keying on the scope
+ * produced one line per caller for one underlying condition, which is the
+ * duplicate the logs showed.
+ *
+ * The scope is still *reported* — it identifies which path noticed the problem
+ * first, which is genuinely useful — it just no longer creates a second entry.
+ *
+ * Never includes token material: only the non-sensitive error code.
  */
 export function logDeadSessionOnce(scope: string, code: string | undefined): void {
-  const key = `${scope}:${code ?? "unknown"}`;
-  if (logged.has(key)) return;
-  logged.add(key);
+  // Keyed on the condition only. "no code" is normal: a dead refresh token can
+  // arrive with no `.code` and be recognised by its message alone.
+  const key = code ?? "dead-session";
+  const memory = logMemory();
+  if (memory.has(key)) return;
+  memory.add(key);
   console.warn(
     `[${scope}] stale Supabase session cookies detected (${code ?? "no code"}); ` +
       "clearing them so the visitor can sign in again. This is expected and logged once.",
   );
+}
+
+/** Test seam: clears the once-only log memory. Never called in application code. */
+export function resetDeadSessionLogForTests(): void {
+  logMemory().clear();
 }
 
 /**

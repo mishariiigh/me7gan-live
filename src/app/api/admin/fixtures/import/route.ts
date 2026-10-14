@@ -1,6 +1,7 @@
 import { checkAdminRequest, logSupabaseError, recordAdminAudit } from "@/lib/api";
 import { createSupabaseServerClient, getServerUser } from "@/lib/supabase/server";
 import { resolveTeamLogo } from "@/lib/sports/team-logos";
+import { revalidateFixtureData } from "@/lib/sports/revalidate";
 import {
   MAX_UPLOAD_BYTES,
   REQUIRED_FIELDS,
@@ -377,6 +378,12 @@ export async function POST(request: Request) {
     rejected: allRejected.length,
     failed: failures.length,
   });
+
+  // Bulk import: many fixtures can change at once, so the public schedule is
+  // invalidated after the writes resolve. Without this a large import would
+  // leave the homepage showing the pre-import week until the cache window
+  // expired on its own. Only reached when at least one row was written.
+  if (imported > 0 || updated > 0) revalidateFixtureData();
 
   return Response.json(
     {

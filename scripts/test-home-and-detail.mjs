@@ -103,12 +103,32 @@ function build(relPath, replacements = {}) {
   return url;
 }
 
-// The stub must hand the loader the fake client.
-const STUB = `"data:text/javascript,let c=globalThis.__FAKE_DB__;export async function createSupabaseServerClient(){return c?c():null}"`;
+// The stub must hand the loader the fake client. Both client factories are
+// provided: the cached public loaders use `createPublicSupabaseClient`, while
+// the authenticated paths use `createSupabaseServerClient`.
+const STUB =
+  `"data:text/javascript,let c=globalThis.__FAKE_DB__;` +
+  `export async function createSupabaseServerClient(){return c?c():null}` +
+  `export function createPublicSupabaseClient(){return c?c():null}"`;
 globalThis.__FAKE_DB__ = makeClient;
+
+/**
+ * `next/cache` is a Next.js internal that Node cannot resolve from a transpiled
+ * file. Stubbed to an identity passthrough so the cached loaders still return
+ * real results here, while the caching behaviour itself is covered by the
+ * build + `test-caching.mjs` against a running server.
+ */
+const NEXT_CACHE_STUB =
+  `"data:text/javascript,export const unstable_cache=(fn)=>fn;export const revalidateTag=()=>{};export const revalidatePath=()=>{};export const revalidate=()=>{}"`;
+
+/** Every Next-internal module the transpiled sources import. */
+const NEXT_STUBS = {
+  '"next/cache"': NEXT_CACHE_STUB,
+};
 
 const Matches = await import(build("src/lib/sports/matches.ts", {
   '"@/lib/supabase/server"': STUB,
+  ...NEXT_STUBS,
 }));
 const MT = await import(build("src/lib/sports/match-types.ts"));
 

@@ -1,8 +1,9 @@
 import { checkAdminRequest, recordAdminAudit } from "@/lib/api";
 import { createSupabaseServerClient, getServerUser } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { revalidateFixtureData, revalidateMatch } from "@/lib/sports/revalidate";
 import { matchUpdateInput } from "@/lib/validation";
 import { isCompetition } from "@/lib/sports/competitions";
-
 const privateHeaders = { "cache-control": "private, no-store" };
 
 type RouteContext = { params: Promise<{ fixtureId: string }> };
@@ -65,6 +66,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (error) return Response.json({ error: "Could not duplicate the match." }, { status: 400 });
 
     await recordAdminAudit("duplicate", "match", data.fixture_id, { source_fixture_id: fixtureId });
+    revalidateMatch(data.fixture_id);
     return Response.json({ data }, { status: 201, headers: privateHeaders });
   }
 
@@ -78,6 +80,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (!data) return Response.json({ error: "Match not found." }, { status: 404 });
 
   await recordAdminAudit("update", "match", fixtureId, parsed.data);
+  // The fixture may have been unpublished, renamed or moved date, all of which
+  // change the public schedule.
+  revalidateFixtureData();
+  revalidatePath(`/match/${fixtureId}`);
   return Response.json({ data }, { headers: privateHeaders });
 }
 
@@ -100,5 +106,6 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (!data) return Response.json({ error: "Match not found." }, { status: 404 });
 
   await recordAdminAudit("delete", "match", fixtureId);
+  revalidateMatch(fixtureId);
   return Response.json({ success: true }, { headers: privateHeaders });
 }

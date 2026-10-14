@@ -1,14 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Radio, Tv } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, CalendarDays, Radio, Star, Tv } from "lucide-react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import AdSlot from "@/components/ad-slot";
+import FixtureGroups from "@/components/fixture-groups";
 import MatchCard from "@/components/match-card";
+import MatchFilterBar from "@/components/match-filter-bar";
+import NextMatchPanel from "@/components/next-match-panel";
+import { useFavourites } from "@/components/use-favourites";
+import { useAdminSession } from "@/components/use-admin-session";
 import { useLocale } from "@/components/locale-provider";
 import { EmptyState } from "@/components/ui/primitives";
 import type { getPublicFixtureSchedule } from "@/lib/sports/matches";
 import type { PublicMatch } from "@/lib/sports/match-types";
+import {
+  ALL_COMPETITIONS,
+  availableCompetitions,
+  filterMatches,
+  groupByDateAndCompetition,
+  prioritiseFavourites,
+  type CompetitionFilter,
+} from "@/lib/sports/match-filtering";
 import { BRAND } from "@/lib/brand";
 
 type Schedule = Awaited<ReturnType<typeof getPublicFixtureSchedule>>;
@@ -31,8 +45,19 @@ export default function HomePage({
   liveMatches: PublicMatch[];
 }) {
   const { locale } = useLocale();
+  const isArabic = locale === "ar";
   const [tab, setTab] = useState<Tab>("all");
   const [range, setRange] = useState<Range>("week");
+  const [competition, setCompetition] = useState<CompetitionFilter>(ALL_COMPETITIONS);
+  const [query, setQuery] = useState("");
+  const [favouritesOnly, setFavouritesOnly] = useState(false);
+  const { favourites, isFavourite, toggleFavourite } = useFavourites();
+  // Admin controls are offered only after the SERVER confirms the session (see
+  // the hook). A regular visitor never renders them, and the server authorises
+  // every write again regardless of what the UI shows.
+  const { isAdmin } = useAdminSession();
+  const router = useRouter();
+  const [, startRefresh] = useTransition();
 
   const featured = liveMatches[0] ?? fixtureSchedule.today[0] ?? fixtureSchedule.tomorrow[0] ?? null;
 
@@ -46,36 +71,76 @@ export default function HomePage({
     return fixtureSchedule.week;
   }, [range, fixtureSchedule.today, fixtureSchedule.tomorrow, fixtureSchedule.week]);
 
+  // Chips come from the rows currently in view, so selecting "today" never
+  // offers a competition that only plays tomorrow.
+  const competitionOptions = useMemo(() => availableCompetitions(rangeMatches), [rangeMatches]);
+
+  const filtered = useMemo(
+    () =>
+      filterMatches(rangeMatches, {
+        competition,
+        query,
+        favouritesOnly,
+        favourites,
+      }),
+    [rangeMatches, competition, query, favouritesOnly, favourites],
+  );
+
   const visible = useMemo(() => {
-    if (tab === "stream") return rangeMatches.filter((match) => match.hasActiveStream);
-    if (tab === "external") return rangeMatches.filter((match) => !match.hasActiveStream);
-    return rangeMatches;
-  }, [rangeMatches, tab]);
+    const byTab =
+      tab === "stream"
+        ? filtered.filter((match) => match.hasActiveStream)
+        : tab === "external"
+          ? filtered.filter((match) => !match.hasActiveStream)
+          : filtered;
+    // Favourites float to the top without hiding anything else.
+    return prioritiseFavourites(byTab, favourites);
+  }, [filtered, tab, favourites]);
 
   const ranges: { id: Range; label: string }[] = [
-    { id: "today", label: locale === "ar" ? "اليوم" : "Today" },
-    { id: "tomorrow", label: locale === "ar" ? "الغد" : "Tomorrow" },
-    { id: "week", label: locale === "ar" ? "هذا الأسبوع" : "This week" },
+    { id: "today", label: isArabic ? "اليوم" : "Today" },
+    { id: "tomorrow", label: isArabic ? "الغد" : "Tomorrow" },
+    { id: "week", label: isArabic ? "هذا الأسبوع" : "This week" },
   ];
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "all", label: locale === "ar" ? "الكل" : "All" },
-    { id: "stream", label: locale === "ar" ? "بث داخل الموقع" : "On-site stream" },
-    { id: "external", label: locale === "ar" ? "بث رسمي" : "Official broadcast" },
+    { id: "all", label: isArabic ? "الكل" : "All" },
+    { id: "stream", label: isArabic ? "بث داخل الموقع" : "On-site stream" },
+    { id: "external", label: isArabic ? "بث رسمي" : "Official broadcast" },
   ];
 
-  /** The week's fixtures grouped by date, Monday first, for the group headings. */
-  const weekGroups = useMemo(() => {
-    const byDate = new Map<string, PublicMatch[]>();
-    for (const match of visible) {
-      const list = byDate.get(match.matchDate) ?? [];
-      list.push(match);
-      byDate.set(match.matchDate, list);
-    }
-    // Sorted by the date string, which is already ISO-ordered, so no date
-    // parsing (and no timezone conversion) is involved.
-    return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [visible]);
+  /** The week's fixtures grouped by date then competition, for the headings. */
+  const weekGroups = useMemo(() => groupByDateAndCompetition(visible), [visible]);
+
+  // Which fixture is "next" depends on the current time, so it is resolved on
+  // the client (`useSyncExternalStore`) rather than during the server render —
+  // reading the clock while rendering would make the page non-cacheable and is
+  // flagged by the React purity rule.
+  const upcomingPool = useMemo(() => {
+    const seen = new Set<string>();
+    return [...fixtureSchedule.today, ...fixtureSchedule.week].filter((match) => {
+      if (seen.has(match.fixtureId)) return false;
+      seen.add(match.fixtureId);
+      return true;
+    });
+  }, [fixtureSchedule.today, fixtureSchedule.week]);
+
+  const favouritesProps = { isFavourite, toggleFavourite };
+  const adminProps = isAdmin ? { enabled: true } : undefined;
+  const hasLive = liveMatches.length > 0;
+  const filtersActive = competition !== ALL_COMPETITIONS || query.trim() !== "" || favouritesOnly;
+
+  /**
+   * Re-fetches the server component after an inline link edit.
+   *
+   * `router.refresh()` re-renders the page with fresh data without losing
+   * client state (filters, search, favourites), so the edited card updates
+   * immediately instead of requiring a manual reload. Wrapped in a transition
+   * so React keeps the current UI visible while the refresh is in flight.
+   */
+  const handleLinksChanged = useCallback(() => {
+    startRefresh(() => router.refresh());
+  }, [router]);
 
   return (
     <main id="main-content">
@@ -128,6 +193,8 @@ export default function HomePage({
                 match={featured}
                 variant="featured"
                 live={liveMatches.some((item) => item.fixtureId === featured.fixtureId)}
+                admin={adminProps}
+                onLinksChanged={handleLinksChanged}
               />
             ) : (
               <EmptyState
@@ -140,39 +207,43 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ── LIVE NOW ──────────────────────────────────────────────────── */}
-      <section className="content-section page-width">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">{locale === "ar" ? "البث المتاح" : "ON AIR"}</span>
-            <h2>{locale === "ar" ? "مباشر الآن" : "Live now"}</h2>
+      {/* ── LIVE NOW, or the next match ──────────────────────────────────
+          When nothing is live the full section is replaced by a compact
+          next-match panel, so the page never reserves a large empty area. */}
+      {hasLive ? (
+        <section className="content-section page-width">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">{isArabic ? "البث المتاح" : "ON AIR"}</span>
+              <h2>{isArabic ? "مباشر الآن" : "Live now"}</h2>
+            </div>
+            <Link href="/live">
+              {isArabic ? "عرض الكل" : "Browse all"} <ArrowLeft size={15} aria-hidden="true" />
+            </Link>
           </div>
-          <Link href="/live">
-            {locale === "ar" ? "عرض الكل" : "Browse all"} <ArrowLeft size={15} aria-hidden="true" />
-          </Link>
-        </div>
 
-        {liveMatches.length > 0 ? (
           <div className="match-grid match-grid-2">
             {liveMatches.map((match) => (
-              <MatchCard key={match.fixtureId} match={match} live />
+              <MatchCard
+                key={match.fixtureId}
+                match={match}
+                live
+                favourites={favouritesProps}
+                admin={adminProps}
+                onLinksChanged={handleLinksChanged}
+              />
             ))}
           </div>
-        ) : (
-          <EmptyState
-            icon={<Radio size={20} />}
-            title={locale === "ar" ? "لا يوجد بث متاح في هذه اللحظة" : "No broadcasts available right now"}
-            description={locale === "ar" ? "المباريات التي يُتاح لها بث أو رابط رسمي ستظهر هنا." : "Matches with a stream or official link appear here."}
-            action={<Link className="text-action" href="/upcoming">{locale === "ar" ? "تصفح المباريات" : "Browse matches"} <ArrowLeft size={14} aria-hidden="true" /></Link>}
-          />
-        )}
-      </section>
+        </section>
+      ) : (
+        <NextMatchPanel matches={upcomingPool} />
+      )}
 
       {/* ── ADVERTISEMENT ─────────────────────────────────────────────────
           Sits between two content sections, well clear of match cards,
           navigation and any control a visitor might click expecting a stream. */}
       <div className="page-width">
-        <AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME} label={locale === "ar" ? "إعلان" : "Advertisement"} />
+        <AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME} label={isArabic ? "إعلان" : "Advertisement"} />
       </div>
 
       {/* ── UPCOMING ──────────────────────────────────────────────────── */}
@@ -207,9 +278,21 @@ export default function HomePage({
           ))}
         </div>
 
+        <MatchFilterBar
+          competitions={competitionOptions}
+          competition={competition}
+          onCompetitionChange={setCompetition}
+          query={query}
+          onQueryChange={setQuery}
+          favouritesOnly={favouritesOnly}
+          onFavouritesOnlyChange={setFavouritesOnly}
+          favouriteCount={favourites.size}
+          resultCount={visible.length}
+        />
+
         {/* Secondary filter: how the match is broadcast. */}
         {rangeMatches.length > 0 && (
-          <div className="filter-bar" role="group" aria-label={locale === "ar" ? "تصفية المباريات" : "Filter matches"}>
+          <div className="filter-bar" role="group" aria-label={isArabic ? "تصفية المباريات" : "Filter matches"}>
             {tabs.map(({ id, label }) => (
               <button
                 key={id}
@@ -225,27 +308,49 @@ export default function HomePage({
         )}
 
         {visible.length > 0 ? (
-          // Grouped by date for every range, so "This Week" reads as a browsable
-          // Monday..Sunday schedule and Today/Tomorrow stay single groups.
-          weekGroups.map(([date, matches]) => (
-            <DateGroup
-              key={date}
-              title={dateLabel(date, fixtureSchedule, locale)}
-              date={date}
-              matches={matches}
-              locale={locale}
-            />
-          ))
+          // Grouped by date, then by competition, so "This Week" reads as a
+          // browsable Monday..Sunday schedule.
+          <FixtureGroups
+            groups={weekGroups}
+            todayDate={fixtureSchedule.todayDate}
+            tomorrowDate={fixtureSchedule.tomorrowDate}
+            favourites={favouritesProps}
+            admin={adminProps}
+            onLinksChanged={handleLinksChanged}
+          />
         ) : (
           <EmptyState
-            icon={<Tv size={20} />}
-            title={emptyTitle(range, locale)}
+            icon={filtersActive ? <Star size={20} /> : <Tv size={20} />}
+            title={
+              filtersActive
+                ? isArabic ? "لا توجد مباريات مطابقة" : "No matching matches"
+                : emptyTitle(range, isArabic)
+            }
             description={
-              range === "today"
-                ? (locale === "ar" ? "لا توجد مباريات مجدولة اليوم. جرّب الغد أو هذا الأسبوع." : "No fixtures today. Try tomorrow or this week.")
-                : range === "tomorrow"
-                  ? (locale === "ar" ? "لا توجد مباريات مجدولة غداً. جرّب هذا الأسبوع." : "No fixtures tomorrow. Try this week.")
-                  : (locale === "ar" ? "لا توجد مباريات منشورة في هذا الأسبوع." : "No published fixtures this week.")
+              filtersActive
+                ? isArabic
+                  ? "جرّب تغيير البطولة أو مسح البحث أو اختيار نطاق تاريخ أوسع."
+                  : "Try another competition, clear the search, or widen the date range."
+                : range === "today"
+                  ? isArabic ? "لا توجد مباريات مجدولة اليوم. جرّب الغد أو هذا الأسبوع." : "No fixtures today. Try tomorrow or this week."
+                  : range === "tomorrow"
+                    ? isArabic ? "لا توجد مباريات مجدولة غداً. جرّب هذا الأسبوع." : "No fixtures tomorrow. Try this week."
+                    : isArabic ? "لا توجد مباريات منشورة في هذا الأسبوع." : "No published fixtures this week."
+            }
+            action={
+              filtersActive ? (
+                <button
+                  type="button"
+                  className="text-action"
+                  onClick={() => {
+                    setCompetition(ALL_COMPETITIONS);
+                    setQuery("");
+                    setFavouritesOnly(false);
+                  }}
+                >
+                  {isArabic ? "مسح التصفية" : "Clear filters"}
+                </button>
+              ) : undefined
             }
           />
         )}
@@ -255,56 +360,8 @@ export default function HomePage({
 }
 
 /** Empty-state heading that names the range the visitor is looking at. */
-function emptyTitle(range: Range, locale: "ar" | "en") {
-  if (range === "today") return locale === "ar" ? "لا توجد مباريات اليوم" : "No matches today";
-  if (range === "tomorrow") return locale === "ar" ? "لا توجد مباريات غداً" : "No matches tomorrow";
-  return locale === "ar" ? "لا توجد مباريات هذا الأسبوع" : "No matches this week";
-}
-
-/**
- * Heading for a date group: "Today", "Tomorrow", or the formatted date.
- *
- * Comparison is on the ISO date string, so no timezone conversion happens and a
- * fixture at 00:30 is never filed under the wrong day.
- */
-function dateLabel(date: string, schedule: Schedule, locale: "ar" | "en") {
-  if (date === schedule.todayDate) return locale === "ar" ? "اليوم" : "Today";
-  if (date === schedule.tomorrowDate) return locale === "ar" ? "الغد" : "Tomorrow";
-  return locale === "ar" ? "" : "";
-}
-
-function DateGroup({
-  title,
-  date,
-  matches,
-  locale,
-}: {
-  title: string;
-  date: string;
-  matches: PublicMatch[];
-  locale: "ar" | "en";
-}) {
-  if (matches.length === 0) return null;
-
-  // Formatted from a UTC-anchored midnight so the label always names the same
-  // calendar day the fixture is stored against, in every visitor timezone.
-  const label = new Intl.DateTimeFormat(locale === "ar" ? "ar-SA" : "en-GB", {
-    dateStyle: "full",
-    timeZone: "UTC",
-  }).format(new Date(`${date}T00:00:00Z`));
-
-  return (
-    <section className="date-group">
-      <div className="date-group-heading">
-        <h3>{title || label}</h3>
-        <span>{title ? label : ""}</span>
-        <span className="date-group-count">{matches.length}</span>
-      </div>
-      <div className="match-grid">
-        {matches.map((match) => (
-          <MatchCard key={match.fixtureId} match={match} />
-        ))}
-      </div>
-    </section>
-  );
+function emptyTitle(range: Range, isArabic: boolean) {
+  if (range === "today") return isArabic ? "لا توجد مباريات اليوم" : "No matches today";
+  if (range === "tomorrow") return isArabic ? "لا توجد مباريات غداً" : "No matches tomorrow";
+  return isArabic ? "لا توجد مباريات هذا الأسبوع" : "No matches this week";
 }

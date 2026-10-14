@@ -4,7 +4,10 @@ import MatchesListing from "@/components/matches-listing";
 import { getPublicFixtureSchedule } from "@/lib/sports/matches";
 import { BRAND } from "@/lib/brand";
 
-export const dynamic = "force-dynamic";
+// No `dynamic = "force-dynamic"`: the fixture data is cached with an explicit
+// revalidate window and tag (see `lib/sports/matches.ts`), so this page is
+// served from that cache rather than re-querying Supabase per request.
+// `revalidateTag("public-fixtures")` after an admin change refreshes it.
 
 export const metadata: Metadata = { title: "المباريات", description: "جدول مباريات اليوم والغد والبثوث المتاحة لكل مباراة.", alternates: { canonical: "/upcoming" } };
 
