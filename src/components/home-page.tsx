@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, CalendarDays, Radio, Star, Tv } from "lucide-react";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import AdSlot from "@/components/ad-slot";
+import AdminAnalyticsPanel from "@/components/admin-analytics-panel";
 import FixtureGroups from "@/components/fixture-groups";
 import MatchCard from "@/components/match-card";
 import MatchFilterBar from "@/components/match-filter-bar";
@@ -127,6 +128,13 @@ export default function HomePage({
 
   const favouritesProps = { isFavourite, toggleFavourite };
   const adminProps = isAdmin ? { enabled: true } : undefined;
+  // Visitor statistics are administrator-only. `useAdminSession` starts as
+  // `false` and only flips to `true` after the SERVER confirms an admin session,
+  // so a regular visitor never mounts the panel and never issues the
+  // `/api/analytics/stats` request — which is independently admin-gated anyway.
+  // Rendering it here (rather than reading the session during the server render)
+  // is what keeps this page cacheable for everyone.
+  const showAnalytics = isAdmin;
   const hasLive = liveMatches.length > 0;
   const filtersActive = competition !== ALL_COMPETITIONS || query.trim() !== "" || favouritesOnly;
 
@@ -206,6 +214,17 @@ export default function HomePage({
           </div>
         </div>
       </section>
+
+      {/* ── ADMIN-ONLY: TODAY'S VISITORS ────────────────────────────────
+          Rendered only for a confirmed administrator. The panel fetches its
+          own numbers from the admin-gated endpoint and handles its own loading
+          / error / not-configured states, so the visitor experience and the
+          cached HTML are unchanged. */}
+      {showAnalytics && (
+        <section className="content-section page-width home-admin-analytics">
+          <AdminAnalyticsPanel />
+        </section>
+      )}
 
       {/* ── LIVE NOW, or the next match ──────────────────────────────────
           When nothing is live the full section is replaced by a compact

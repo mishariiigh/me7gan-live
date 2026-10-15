@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import Script from "next/script";
+import AnalyticsBeacon from "@/components/analytics-beacon";
 import { LocaleProvider } from "@/components/locale-provider";
 import SiteHeader from "@/components/site-header";
 import { BRAND } from "@/lib/brand";
@@ -77,6 +78,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           />
         )}
         <LocaleProvider>
+          {/* Reports one page view per client-side navigation. Best-effort and
+              invisible: it renders nothing and swallows every failure, so a
+              missing analytics setup cannot affect any page. */}
+          <AnalyticsBeacon />
           <a className="sr-only" href="#main-content">تخط إلى المحتوى الرئيسي</a>
           <SiteHeader />
           {children}
@@ -89,7 +94,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   alt={`${BRAND.ar} — ${BRAND.en}`}
                   width={BRAND.logoWidth}
                   height={BRAND.logoHeight}
-                  sizes="56px"
+                  sizes="112px"
                 />
                 <strong>{BRAND.ar}</strong>
                 <span>منصة لمتابعة المباريات والبثوث المتاحة.</span>

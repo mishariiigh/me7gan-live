@@ -13,6 +13,7 @@
     "test:session": "node scripts/test-stale-session.mjs",
     "test:filters": "node scripts/test-match-filtering.mjs",
     "test:caching": "node scripts/test-caching.mjs",
+    "test:match-cleanup": "node scripts/test-match-cleanup.mjs",
     "test:inline-links": "node scripts/test-inline-links.mjs",
     "test:card-layout": "node scripts/test-card-layout.mjs",
     "test:auth-logging": "node scripts/test-auth-logging.mjs",
@@ -20,8 +21,9 @@
     "test:multi-source": "node scripts/test-multi-source-save.mjs",
     "test:modal-portal": "node scripts/test-modal-portal.mjs",
     "test:player": "node scripts/test-player-performance.mjs",
-    "test": "node scripts/test-fixture-import.mjs && node scripts/test-team-logos.mjs && node scripts/test-live-team-logos.mjs && node scripts/test-home-and-detail.mjs && node scripts/test-stale-session.mjs && node scripts/test-match-filtering.mjs && node scripts/test-card-layout.mjs && node scripts/test-auth-logging.mjs && node scripts/test-modal-portal.mjs && node scripts/test-player-performance.mjs",
-    "test:pages": "node scripts/test-home-and-detail.mjs"
+    "test": "node scripts/test-fixture-import.mjs && node scripts/test-team-logos.mjs && node scripts/test-live-team-logos.mjs && node scripts/test-home-and-detail.mjs && node scripts/test-stale-session.mjs && node scripts/test-match-filtering.mjs && node scripts/test-card-layout.mjs && node scripts/test-auth-logging.mjs && node scripts/test-modal-portal.mjs && node scripts/test-player-performance.mjs && node scripts/test-analytics.mjs && node scripts/test-match-cleanup.mjs",
+    "test:pages": "node scripts/test-home-and-detail.mjs",
+    "test:analytics": "node scripts/test-analytics.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

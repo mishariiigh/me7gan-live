@@ -3088,3 +3088,84 @@
   font-size: var(--text-xs);
   max-width: 34ch;
 }
+/* ── ADMIN ANALYTICS (admin-only, rendered on /admin and the homepage) ───────
+   Shown only to a confirmed administrator. The panel is a normal content block
+   so it slots into the existing RTL page rhythm without a bespoke layout. */
+
+.home-admin-analytics { padding-block: clamp(18px, 2.5vw, 30px); }
+
+.admin-analytics {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 14px);
+  padding: clamp(16px, 2vw, 22px);
+}
+
+.admin-analytics-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.admin-analytics-head h2 {
+  align-items: center;
+  display: flex;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  gap: 8px;
+}
+
+.admin-analytics-day {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.admin-analytics-note { color: var(--color-text-secondary); font-size: var(--text-sm); }
+
+.admin-analytics-detail { color: var(--color-text-muted); }
+
+.admin-analytics-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.admin-analytics-stat {
+  background: var(--color-background, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 10px);
+  padding: 12px 14px;
+}
+
+.admin-analytics-stat dt {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  font-size: var(--text-xs);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.admin-analytics-stat dd {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+}
+
+.admin-analytics-footnote {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  margin-top: 14px;
+}
+
+/* Two columns on tablet, one on phones: the figures stay readable rather than
+   squeezing three numerals into a narrow column. */
+@media (max-width: 640px) {
+  .admin-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

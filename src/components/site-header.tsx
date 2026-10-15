@@ -38,10 +38,10 @@ export default function SiteHeader() {
             alt={`${BRAND.ar} — ${BRAND.en}`}
             width={BRAND.logoWidth}
             height={BRAND.logoHeight}
-            // Rendered at `BRAND.logoSize` px tall; the intrinsic ratio (1.83:1)
-            // then makes it ~74px wide. The hint keeps next/image from serving
+            // Rendered at `BRAND.logoSize` px tall; the intrinsic ratio (1.77:1)
+            // then makes it ~71px wide. The hint keeps next/image from serving
             // the full-resolution source into the header.
-            sizes="80px"
+            sizes="144px"
             priority
           />
         </Link>

@@ -17,34 +17,33 @@ export const BRAND = {
   /**
    * Brand logo, served from /public.
    *
-   * `logo1.png` is the source artwork, but its visible lockup is a ~1.8:1
-   * wordmark centred inside a padded square. `me7gan-logo.png` is that same
-   * artwork cropped to its content, so it stays legible at header size instead
-   * of being scaled down into a mostly-empty square.
+   * `logo1.png` is the source artwork. `me7gan-logo.png` is that artwork
+   * cropped to its content with an even margin, so it stays legible at header
+   * size instead of being scaled down into a mostly-empty square.
    */
   logo: "/me7gan-logo.png",
   /**
    * Intrinsic pixel size of the logo file, used so `next/image` reserves the
    * correct box (no layout shift) and preserves the aspect ratio.
    *
-   * The mark is a wide wordmark — 320 x 175 ≈ 1.83:1 — NOT square, so the
+   * The mark is a wide wordmark — 1096 x 618 ≈ 1.77:1 — NOT square, so the
    * rendered box must stay proportional or the artwork will be stretched.
-   *
-   * The source is deliberately small: the logo renders at ≤80px wide, so a
-   * 320px master is crisp even on 3x displays while keeping `next/image` from
-   * offering a multi-thousand-pixel candidate for a 36px-tall image.
    */
-  logoWidth: 320,
-  logoHeight: 175,
+  logoWidth: 1096,
+  logoHeight: 618,
   /**
    * Compact icon-only mark (ball + speed streaks + LIVE badge, no wordmark).
    * Square, on the light canvas, and legible down to favicon size where the
    * full wordmark would be an unreadable smudge.
    */
   icon: "/me7gan-live-icon.png",
-  /** Intrinsic size of the icon mark (square). */
-  iconWidth: 925,
-  iconHeight: 390,
+  /**
+   * Intrinsic size of the icon mark — a square 512 x 512 canvas with the mark
+   * padded on the light background. The same artwork is mirrored to
+   * `icon-192.png`, `icon-512.png`, `apple-icon.png` and the favicons.
+   */
+  iconWidth: 512,
+  iconHeight: 512,
   /** Uniform height the header/footer render the wordmark at. */
   logoSize: 40,
 } as const;
