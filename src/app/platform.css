@@ -2169,7 +2169,14 @@
 
 @media (max-width: 640px) {
   .header-inner { gap: 12px; }
-  .header-action-label { display: none; }
+  /* Only the menu toggle's label is dropped on mobile: it is redundant next to
+     its hamburger icon. The language switcher's label is its ONLY visible
+     content, so hiding it would leave an empty bordered square — keep it. */
+  .menu-toggle .header-action-label { display: none; }
+  /* Phone tap target: the default 38px is below the 44px touch guideline and
+     the language button is a primary action in the mobile header. Only the
+     min-height changes here; the desktop sizing is untouched. */
+  .header-action { min-height: 44px; min-width: 44px; }
   .hero { padding-block: 26px; }
   .hero-stats { gap: 18px; }
   .match-card-body { gap: 8px; }
