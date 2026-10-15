@@ -80,7 +80,7 @@ export default function CompetitionFixtures({
         // No competition chips: the route already selects one.
         competitions={[]}
         competition={ALL_COMPETITIONS}
-        onCompetitionChange={() => {}}
+        onCompetitionChange={() => { }}
         query={query}
         onQueryChange={setQuery}
         favouritesOnly={favouritesOnly}
